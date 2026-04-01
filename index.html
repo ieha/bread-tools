@@ -277,9 +277,7 @@
     </div>
   </div>
 
-  <button class="btn btn-primary" onclick="calculate()">計算する</button>
-
-  <div id="result-area" style="display:none; margin-top:13px;">
+  <div id="result-area" style="margin-top:13px;">
 
     <div class="result-box">
       <div class="result-label">仕込み水温</div>
@@ -977,6 +975,14 @@ window.addEventListener('load', () => {
 
   // プリセット描画
   renderPresets();
+
+  // リアルタイム計算：計算に関わる入力が変わるたびに自動再計算
+  ['target-temp','friction','room-temp','flour-temp','sponge-temp'].forEach(id => {
+    document.getElementById(id).addEventListener('input', calculate);
+  });
+
+  // 初期表示時に即計算
+  calculate();
 });
 </script>
 </body>
