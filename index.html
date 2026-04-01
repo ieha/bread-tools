@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>パン仕込み水温計算機</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif;
+      background: #faf7f2; color: #3a2e1e; min-height: 100vh;
+    }
+    header {
+      background: linear-gradient(135deg, #8b6914 0%, #c4952a 100%);
+      color: white; padding: 16px 18px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    header h1 { font-size: 1.2rem; font-weight: 700; }
+    header .sub { font-size: 0.72rem; opacity: 0.85; margin-top: 2px; }
+
+    .tabs {
+      display: flex; background: #f0ead8;
+      border-bottom: 2px solid #d4b870;
+      position: sticky; top: 0; z-index: 50;
+    }
+    .tab {
+      flex: 1; padding: 10px 4px; text-align: center; cursor: pointer;
+      font-size: 0.8rem; font-weight: 600; color: #7a6030;
+      border-bottom: 3px solid transparent; transition: all 0.15s;
+    }
+    .tab.active { color: #8b6914; border-bottom: 3px solid #8b6914; background: #faf7f2; }
+    .tab:hover:not(.active) { background: #e8dfc8; }
+
+    .page { display: none; padding: 14px; max-width: 600px; margin: 0 auto; }
+    .page.active { display: block; }
+
+    .card {
+      background: white; border-radius: 12px; padding: 16px;
+      margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .card-title {
+      font-size: 0.72rem; font-weight: 700; color: #8b6914;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      margin-bottom: 11px; padding-bottom: 7px; border-bottom: 1px solid #f0e8d0;
+    }
+
+    .field { margin-bottom: 10px; }
+    .field:last-child { margin-bottom: 0; }
+    .field label { display: block; font-size: 0.78rem; font-weight: 600; color: #5a4520; margin-bottom: 4px; }
+    .field .hint { font-size: 0.68rem; color: #9a8060; margin-top: 3px; line-height: 1.4; }
+
+    input[type="date"], input[type="number"], input[type="text"], select, textarea {
+      width: 100%; padding: 8px 10px; border: 1.5px solid #ddd0b8; border-radius: 8px;
+      font-size: 0.92rem; color: #3a2e1e; background: #fffdf8; transition: border-color 0.2s; -webkit-appearance: none;
+    }
+    input:focus, select:focus { outline: none; border-color: #c4952a; box-shadow: 0 0 0 3px rgba(196,149,42,0.15); }
+    input[type="number"] { text-align: right; }
+
+    /* ステッパー */
+    .stepper { display: flex; align-items: center; }
+    .stepper input[type="number"] { flex:1; border-radius:0; border-left:none; border-right:none; text-align:center; }
+    .sb { width:36px; height:36px; border:1.5px solid #ddd0b8; background:#f5f0e8; color:#7a5020; font-size:1.1rem; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background 0.15s; }
+    .sb:first-child { border-radius:8px 0 0 8px; }
+    .sb:last-child  { border-radius:0 8px 8px 0; }
+    .sb:hover { background:#e8dfc8; }
+    .sb:active { background:#d4c8a8; }
+
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+    /* トグル */
+    .toggle-row { display:flex; gap:0; border:1.5px solid #ddd0b8; border-radius:8px; overflow:hidden; }
+    .tog-btn { flex:1; padding:8px 6px; border:none; background:#f5f0e8; color:#7a5020; font-size:0.82rem; font-weight:600; cursor:pointer; transition:all 0.15s; text-align:center; }
+    .tog-btn.active { background:linear-gradient(135deg,#8b6914,#c4952a); color:white; }
+    .tog-btn:not(:last-child) { border-right:1.5px solid #ddd0b8; }
+
+    /* ボタン */
+    .btn { display:block; width:100%; padding:12px; border:none; border-radius:10px; font-size:0.92rem; font-weight:700; cursor:pointer; transition:all 0.2s; }
+    .btn-primary { background:linear-gradient(135deg,#8b6914,#c4952a); color:white; box-shadow:0 3px 10px rgba(139,105,20,0.3); }
+    .btn-primary:hover { transform:translateY(-1px); box-shadow:0 5px 14px rgba(139,105,20,0.35); }
+    .btn-secondary { background:#f0ead8; color:#7a6030; border:1.5px solid #d4b870; }
+    .btn-secondary:hover { background:#e8dfc8; }
+    .btn-sm { width:auto; padding:6px 12px; font-size:0.78rem; border-radius:7px; }
+    .btn-danger { background:#fff0f0; color:#c0392b; border:1.5px solid #e8a0a0; }
+
+    /* 結果 */
+    .result-box {
+      background:linear-gradient(135deg,#8b6914,#c4952a); color:white;
+      border-radius:14px; padding:22px 16px 18px; text-align:center; margin-bottom:12px;
+    }
+    .result-label { font-size:0.8rem; opacity:0.88; margin-bottom:4px; }
+    .result-temp  { font-size:3.2rem; font-weight:800; line-height:1; letter-spacing:-0.02em; }
+    .result-unit  { font-size:1.1rem; font-weight:400; opacity:0.9; }
+    .result-note  { font-size:0.74rem; opacity:0.85; margin-top:7px; min-height:1em; }
+    .badge { display:inline-block; background:rgba(255,255,255,0.25); border-radius:20px; padding:2px 10px; font-size:0.72rem; margin-top:5px; }
+
+    .breakdown {
+      background:#fffdf8; border:1px solid #f0e8d0; border-radius:8px;
+      padding:10px 12px; margin-bottom:11px;
+    }
+    .br-row { display:flex; justify-content:space-between; font-size:0.78rem; padding:3px 0; border-bottom:1px dashed #f0e8d0; }
+    .br-row:last-child { border-bottom:none; font-weight:700; }
+    .br-row .lbl { color:#7a6030; }
+    .br-row.sep-above { border-top:1.5px solid #d4b870; margin-top:4px; padding-top:6px; }
+
+    .info-box { border-radius:8px; padding:10px 12px; font-size:0.77rem; line-height:1.6; margin-bottom:11px; }
+    .ib-blue   { background:#f0f6ff; border:1px solid #c0d4f0; color:#3a5080; }
+    .ib-green  { background:#f0fff4; border:1px solid #80d090; color:#1a6030; }
+    .ib-orange { background:#fff8e6; border:1px solid #f0d070; color:#7a5a00; }
+    .ib-red    { background:#fff0f0; border:1px solid #f0a0a0; color:#8b1a1a; }
+
+    /* 摩擦係数学習パネル */
+    .friction-learn {
+      background:#f8f4ff; border:1px solid #c8b0e8; border-radius:8px;
+      padding:10px 12px; font-size:0.76rem; color:#4a3070; margin-bottom:11px; line-height:1.6;
+    }
+
+    /* 履歴 */
+    .arch-item { background:white; border:1.5px solid #e8e0cc; border-radius:10px; padding:11px; margin-bottom:8px; border-left:4px solid #ddd; }
+    .arch-item.has-actual  { border-left-color:#4caf50; }
+    .arch-item.no-actual   { border-left-color:#ff9800; }
+    .arch-item.preloaded   { border-left-color:#7090c0; }
+    .arch-meta { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:5px; flex-wrap:wrap; gap:4px; }
+    .arch-date { font-weight:700; font-size:0.86rem; }
+    .chips { display:flex; gap:4px; flex-wrap:wrap; }
+    .chip { border-radius:20px; padding:2px 8px; font-size:0.72rem; font-weight:600; }
+    .chip-gray   { background:#f0ead8; color:#7a5020; }
+    .chip-blue   { background:#e3f0ff; color:#1a4080; }
+    .chip-green  { background:#e8f5e9; color:#2e7d32; }
+    .chip-orange { background:#fff3e0; color:#e65100; }
+    .chip-purple { background:#f3e8ff; color:#6a1090; }
+    .arch-detail { font-size:0.72rem; color:#9a8060; line-height:1.7; }
+    .arch-actions { display:flex; gap:6px; margin-top:8px; flex-wrap:wrap; }
+
+    /* 統計 */
+    .stats-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-bottom:12px; }
+    .stat-card { background:#fffdf8; border:1px solid #e8d8b0; border-radius:10px; padding:12px; text-align:center; }
+    .stat-val { font-size:1.5rem; font-weight:800; color:#8b6914; }
+    .stat-lbl { font-size:0.68rem; color:#9a8060; margin-top:3px; }
+
+    /* パン種別プリセット */
+    .preset-grid { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-bottom:10px; max-height:320px; overflow-y:auto; }
+    .preset-btn {
+      padding:9px 8px; border:1.5px solid #ddd0b8; border-radius:8px;
+      background:#fffdf8; cursor:pointer; text-align:left; transition:all 0.15s;
+    }
+    .preset-btn:hover { border-color:#c4952a; background:#fff8e8; }
+    .preset-name { font-size:0.82rem; font-weight:700; color:#5a4520; }
+    .preset-temp { font-size:0.7rem; color:#9a8060; margin-top:2px; }
+
+    /* モーダル */
+    .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:100; align-items:center; justify-content:center; padding:14px; }
+    .modal-overlay.show { display:flex; }
+    .modal { background:white; border-radius:14px; padding:20px 16px; width:100%; max-width:380px; max-height:90vh; overflow-y:auto; }
+    .modal-title { font-size:0.93rem; font-weight:700; margin-bottom:13px; }
+    .modal-actions { display:flex; gap:8px; margin-top:13px; }
+    .modal-actions .btn { flex:1; }
+
+    /* トースト */
+    .toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%) translateY(80px); background:#3a2e1e; color:white; padding:10px 18px; border-radius:30px; font-size:0.82rem; font-weight:600; z-index:200; transition:transform 0.3s ease; white-space:nowrap; pointer-events:none; }
+    .toast.show { transform:translateX(-50%) translateY(0); }
+
+    .sep { height:1px; background:#f0e8d0; margin:12px 0; }
+    .empty-state { text-align:center; padding:32px 14px; color:#9a8060; }
+    .empty-state .icon { font-size:2rem; margin-bottom:7px; }
+    .empty-state p { font-size:0.82rem; line-height:1.7; }
+
+    .formula-box { background:#fffbf0; border:1.5px solid #e8d070; border-radius:8px; padding:9px 12px; font-size:0.76rem; color:#6a4a00; line-height:1.8; margin-bottom:10px; }
+
+    /* 中種温度フィールド */
+    #sponge-field { display:none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🍞 パン仕込み水温計算機</h1>
+  <div class="sub">ストレート法：× 3　｜　中種法：× 4　（あなたの実績データを優先して補正）</div>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('calc')">🌡️ 計算</div>
+  <div class="tab" onclick="switchTab('history')">📋 履歴</div>
+  <div class="tab" onclick="switchTab('stats')">📊 統計</div>
+  <div class="tab" onclick="switchTab('settings')">⚙️ 設定</div>
+</div>
+
+<!-- ===== 計算タブ ===== -->
+<div id="tab-calc" class="page active">
+
+  <!-- 製法選択 -->
+  <div class="card">
+    <div class="card-title">🍞 製法・基本情報</div>
+    <div class="field">
+      <label>製法</label>
+      <div class="toggle-row">
+        <button class="tog-btn active" id="btn-straight" onclick="setMethod('straight')">ストレート法<br><span style="font-size:0.68rem;opacity:0.8;">× 3</span></button>
+        <button class="tog-btn" id="btn-sponge" onclick="setMethod('sponge')">中種法<br><span style="font-size:0.68rem;opacity:0.8;">× 4</span></button>
+      </div>
+      <div class="hint">ストレート法：全材料を一度にこねる　／　中種法：中種と本種に分けてこねる</div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>日付</label>
+        <input type="date" id="calc-date">
+      </div>
+      <div class="field">
+        <label>メモ（任意）</label>
+        <input type="text" id="calc-memo" placeholder="食パン など">
+      </div>
+    </div>
+    <div class="field">
+      <label>こね方</label>
+      <div class="toggle-row">
+        <button class="tog-btn active" id="btn-machine" onclick="setKneadType('machine')">🤖 機械ごね</button>
+        <button class="tog-btn" id="btn-hand" onclick="setKneadType('hand')">🖐 手ごね</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- パン種別クイックセット -->
+  <div class="card">
+    <div class="card-title">⚡ パン種別クイックセット</div>
+    <div class="preset-grid" id="preset-grid"></div>
+    <div class="hint">タップすると目標温度と摩擦係数が自動入力されます</div>
+  </div>
+
+  <!-- 温度入力 -->
+  <div class="card">
+    <div class="card-title">🌡️ 温度入力（0.1°C 単位）</div>
+    <div class="row2">
+      <div class="field">
+        <label>目標捏ね上げ温度 (°C)</label>
+        <div class="stepper">
+          <button class="sb" onclick="step('target-temp',-0.1)">−</button>
+          <input type="number" id="target-temp" value="28.0" step="0.1" min="0" max="50">
+          <button class="sb" onclick="step('target-temp',+0.1)">＋</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>摩擦係数 (°C)</label>
+        <div class="stepper">
+          <button class="sb" onclick="step('friction',-0.1)">−</button>
+          <input type="number" id="friction" value="5.0" step="0.1" min="-10" max="20">
+          <button class="sb" onclick="step('friction',+0.1)">＋</button>
+        </div>
+        <div class="hint" id="friction-hint">機械ごね目安：5〜10°C</div>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>室温 (°C)</label>
+        <div class="stepper">
+          <button class="sb" onclick="step('room-temp',-0.1)">−</button>
+          <input type="number" id="room-temp" value="20.0" step="0.1" min="-10" max="50">
+          <button class="sb" onclick="step('room-temp',+0.1)">＋</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>粉温度 (°C)</label>
+        <div class="stepper">
+          <button class="sb" onclick="step('flour-temp',-0.1)">−</button>
+          <input type="number" id="flour-temp" value="20.0" step="0.1" min="-10" max="50">
+          <button class="sb" onclick="step('flour-temp',+0.1)">＋</button>
+        </div>
+      </div>
+    </div>
+    <!-- 中種温度（中種法のみ表示） -->
+    <div class="field" id="sponge-field">
+      <label>中種温度 (°C)</label>
+      <div class="stepper">
+        <button class="sb" onclick="step('sponge-temp',-0.1)">−</button>
+        <input type="number" id="sponge-temp" value="25.0" step="0.1" min="0" max="50">
+        <button class="sb" onclick="step('sponge-temp',+0.1)">＋</button>
+      </div>
+      <div class="hint">中種法：水温 = (目標 − 摩擦) × 4 − (粉温 + 室温 + 中種温度)</div>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" onclick="calculate()">計算する</button>
+
+  <div id="result-area" style="display:none; margin-top:13px;">
+
+    <div class="result-box">
+      <div class="result-label">仕込み水温</div>
+      <div>
+        <span class="result-temp" id="result-temp">--</span>
+        <span class="result-unit">°C</span>
+      </div>
+      <div id="correction-badge" class="badge" style="display:none;"></div>
+      <div class="result-note" id="result-note"></div>
+    </div>
+
+    <div class="breakdown" id="breakdown"></div>
+    <div id="correction-msg"></div>
+    <div id="friction-learn-panel"></div>
+
+    <!-- 捏ね上げ後記録 -->
+    <div class="card" style="padding:14px;">
+      <div class="card-title">✅ 捏ね上げ後に記録</div>
+      <div class="field">
+        <label>実際の捏ね上げ温度 (°C)</label>
+        <div class="stepper">
+          <button class="sb" onclick="step('actual-temp',-0.1)">−</button>
+          <input type="number" id="actual-temp" placeholder="例：27.8" step="0.1" min="0" max="50">
+          <button class="sb" onclick="step('actual-temp',+0.1)">＋</button>
+        </div>
+        <div class="hint">記録が積み重なるほど精度が上がります</div>
+      </div>
+      <button class="btn btn-primary" onclick="saveRecord()">アーカイブに保存</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== 履歴タブ ===== -->
+<div id="tab-history" class="page">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:9px; flex-wrap:wrap; gap:7px;">
+    <div style="font-size:0.72rem; color:#9a8060; line-height:1.6;">
+      🟢 捏ね上げ温度入力済　🟠 未入力　🔵 過去実績
+    </div>
+    <button class="btn btn-secondary btn-sm" onclick="exportCSV()">CSV書き出し</button>
+  </div>
+  <div id="history-list"></div>
+</div>
+
+<!-- ===== 統計タブ ===== -->
+<div id="tab-stats" class="page">
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-val" id="st-total">0</div><div class="stat-lbl">総記録数</div></div>
+    <div class="stat-card"><div class="stat-val" id="st-with-actual">0</div><div class="stat-lbl">捏ね上げ温度記録</div></div>
+    <div class="stat-card"><div class="stat-val" id="st-correction">--</div><div class="stat-lbl">現在の学習補正値</div></div>
+    <div class="stat-card"><div class="stat-val" id="st-avg-err">--</div><div class="stat-lbl">平均誤差</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🎯 摩擦係数の最適化（King Arthur Baking方式）</div>
+    <div id="friction-optimize"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📈 捏ね上げ温度差異の推移（実測 − 目標）</div>
+    <canvas id="chart" height="160"></canvas>
+    <div id="chart-empty" class="empty-state" style="padding:16px 0 6px;"><p>2件以上のデータでグラフ表示</p></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🧠 現在の学習補正値</div>
+    <div id="correction-summary"></div>
+  </div>
+</div>
+
+<!-- ===== 設定タブ ===== -->
+<div id="tab-settings" class="page">
+  <div class="card">
+    <div class="card-title">⚙️ デフォルト値</div>
+    <div class="row2">
+      <div class="field">
+        <label>目標捏ね上げ温度 (°C)</label>
+        <input type="number" id="def-target" step="0.1">
+      </div>
+      <div class="field">
+        <label>摩擦係数・機械ごね (°C)</label>
+        <input type="number" id="def-machine" step="0.1">
+      </div>
+    </div>
+    <div class="field">
+      <label>摩擦係数・手ごね (°C)</label>
+      <input type="number" id="def-hand" step="0.1">
+      <div class="hint">手ごね目安：−5〜4°C（例：0°C）</div>
+    </div>
+    <button class="btn btn-secondary" onclick="saveDefaults()" style="margin-top:4px;">保存</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🧠 自動補正の設定</div>
+    <div class="field">
+      <label>補正の優先度</label>
+      <select id="corr-priority">
+        <option value="user_first" selected>あなたの記録を優先（推奨）</option>
+        <option value="all">すべての記録を使う</option>
+        <option value="recent_only">直近の記録のみ</option>
+      </select>
+      <div class="hint">「あなたの記録を優先」：自分の記録がある場合はそれを使い、ない場合は過去実績を参照</div>
+    </div>
+    <div class="field">
+      <label>補正に使う件数</label>
+      <select id="corr-window">
+        <option value="3">直近3件</option>
+        <option value="5" selected>直近5件</option>
+        <option value="10">直近10件</option>
+        <option value="0">すべて</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>自動補正</label>
+      <select id="auto-corr">
+        <option value="1" selected>有効（推奨）</option>
+        <option value="0">無効</option>
+      </select>
+    </div>
+    <button class="btn btn-secondary" onclick="saveSettings()" style="margin-top:4px;">保存</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">ℹ️ 計算式について</div>
+    <div class="formula-box">
+      <strong>【ストレート法】</strong><br>
+      水温 = (目標捏ね上げ − 摩擦係数) × 3 − (粉温 + 室温)<br><br>
+      <strong>【中種法（本種）】</strong><br>
+      水温 = (目標捏ね上げ − 摩擦係数) × 4 − (粉温 + 室温 + 中種温度)<br><br>
+      摩擦係数の目安：機械ごね 5〜10°C、手ごね −5〜4°C<br>
+      仕込み水温の実用下限：<strong>3°C</strong>（それ以下は粉を冷やして対応）<br>
+      捏ね上げ温度の実測を記録するたびに補正値が学習されます。
+    </div>
+    <div class="info-box ib-blue" style="font-size:0.74rem;">
+      📚 この計算式は、MocoMoco Kitchen・アトリエキッチン・ナオキパンなど複数のプロ製パン家が採用している標準的な「3倍法」です。あなたのPDFの実績データとも一致しています。<br><br>
+      💡 捏ね上げ温度が1°Cずれると、発酵時間は約20分前後ずれると言われています（ナオキパン調べ）。<br><br>
+      🔧 King Arthur Baking推奨の「摩擦係数の個人最適化」方式を採用。実測値と目標値の差を蓄積し、次回の計算に自動反映します。
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🗂️ データ管理</div>
+    <div style="display:flex; gap:7px; flex-wrap:wrap; margin-bottom:10px;">
+      <button class="btn btn-secondary btn-sm" onclick="exportCSV()">CSV書き出し</button>
+      <button class="btn btn-secondary btn-sm" onclick="exportJSON()">JSONバックアップ</button>
+      <button class="btn btn-secondary btn-sm" onclick="importJSON()">JSONインポート</button>
+    </div>
+    <div class="info-box ib-blue" style="margin-bottom:9px; font-size:0.73rem;">
+      📱 データはブラウザのlocalStorageに保存。機種変更・ブラウザ変更の際はJSONバックアップをお使いください。
+    </div>
+    <button class="btn btn-danger btn-sm" onclick="confirmClear()">⚠️ 全データを削除（取消不可）</button>
+  </div>
+</div>
+
+<!-- 捏ね上げ温度入力モーダル -->
+<div class="modal-overlay" id="modal-actual">
+  <div class="modal">
+    <div class="modal-title">🌡️ 実際の捏ね上げ温度を入力</div>
+    <input type="hidden" id="modal-id">
+    <div class="field">
+      <label>捏ね上げ温度 (°C)</label>
+      <div class="stepper">
+        <button class="sb" onclick="step('modal-actual-temp',-0.1)">−</button>
+        <input type="number" id="modal-actual-temp" step="0.1" min="0" max="50">
+        <button class="sb" onclick="step('modal-actual-temp',+0.1)">＋</button>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveActualTemp()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── 定数 ──────────────────────────────────────────────────────────────
+const DB_KEY = 'bread_v3_records';
+const ST_KEY = 'bread_v3_settings';
+
+// ─── パン種別プリセット ────────────────────────────────────────────────
+// 参考: 一般的なプロの基準 + あなたのPDFの実績値
+const BREAD_PRESETS = [
+  { name:'中種・本種',  icon:'🍞', target:28.0, friction:5.5, hint:'28°C（×4計算）', method:'sponge' },
+  { name:'全粒粉・ライ麦', icon:'🌾', target:25.0, friction:5.0, hint:'酵素活性高め・25〜26°C' },
+  { name:'手ごね',      icon:'🖐', target:28.0, friction:0.0, hint:'−5〜4°C・例は0°C', kneadType:'hand' },
+  { name:'夏季設定',    icon:'☀️', target:29.0, friction:1.2, hint:'実績値・夏の軽めミキサー' },
+];
+
+// ─── PDFから抽出した過去実績（計算式で検証済み） ──────────────────────
+const HISTORICAL_DATA = [
+  {date:'2024-05-24',targetTemp:28.0,roomTemp:17.2,flourTemp:14.0,friction:5.0,waterTemp:37.8,actualTemp:28.0,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2024-05-25',targetTemp:28.0,roomTemp:18.0,flourTemp:18.0,friction:5.0,waterTemp:33.0,actualTemp:28.0,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2024-06-21',targetTemp:30.0,roomTemp:21.0,flourTemp:20.6,friction:5.0,waterTemp:33.0,actualTemp:29.0,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2024-06-22',targetTemp:30.0,roomTemp:17.6,flourTemp:17.6,friction:6.0,waterTemp:37.0,actualTemp:29.0,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2024-07-08',targetTemp:28.0,roomTemp:25.0,flourTemp:25.0,friction:1.2,waterTemp:30.0,actualTemp:29.0,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2024-07-09',targetTemp:28.0,roomTemp:24.6,flourTemp:24.3,friction:1.2,waterTemp:31.0,actualTemp:29.0,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2024-08-11',targetTemp:30.0,roomTemp:27.7,flourTemp:27.5,friction:1.2,waterTemp:31.2,actualTemp:29.5,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2024-08-18',targetTemp:28.0,roomTemp:25.0,flourTemp:26.0,friction:1.2,waterTemp:30.0,actualTemp:28.9,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2024-09-08',targetTemp:29.0,roomTemp:27.2,flourTemp:27.2,friction:1.2,waterTemp:30.0,actualTemp:30.0,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2024-10-04',targetTemp:29.0,roomTemp:27.1,flourTemp:27.3,friction:1.2,waterTemp:29.0,actualTemp:29.0,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2024-11-09',targetTemp:29.0,roomTemp:17.6,flourTemp:17.0,friction:1.2,waterTemp:37.0,actualTemp:28.5,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2024-12-17',targetTemp:26.0,roomTemp:11.5,flourTemp:11.1,friction:5.0,waterTemp:40.0,actualTemp:27.0,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2025-02-08',targetTemp:26.0,roomTemp:6.2, flourTemp:6.5, friction:5.0,waterTemp:50.3,actualTemp:29.0,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2025-02-21',targetTemp:26.0,roomTemp:8.3, flourTemp:8.2, friction:5.5,waterTemp:45.0,actualTemp:28.5,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2025-03-04',targetTemp:26.0,roomTemp:11.0,flourTemp:11.0,friction:5.5,waterTemp:39.5,actualTemp:28.0,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2025-03-10',targetTemp:26.0,roomTemp:11.3,flourTemp:11.0,friction:5.5,waterTemp:39.0,actualTemp:28.0,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2025-03-31',targetTemp:26.0,roomTemp:11.9,flourTemp:11.8,friction:5.0,waterTemp:39.3,actualTemp:27.5,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2025-09-28',targetTemp:29.0,roomTemp:23.3,flourTemp:22.5,friction:1.2,waterTemp:31.0,actualTemp:28.0,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2025-10-28',targetTemp:29.0,roomTemp:20.3,flourTemp:21.0,friction:1.2,waterTemp:32.0,actualTemp:28.5,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2025-11-16',targetTemp:29.0,roomTemp:18.1,flourTemp:17.8,friction:1.2,waterTemp:35.0,actualTemp:28.0,kneadType:'machine',method:'straight',memo:'過去実績'},
+  {date:'2025-12-19',targetTemp:29.0,roomTemp:18.0,flourTemp:14.0,friction:1.2,waterTemp:36.0,actualTemp:30.0,kneadType:'machine',method:'straight',memo:'過去実績'},
+  // 中種法実績（4倍法で検証）
+  {date:'2026-03-31',targetTemp:25.5,roomTemp:14.0,flourTemp:14.0,spongeTemp:16.6,friction:5.6,waterTemp:35.0,actualTemp:null,kneadType:'machine',method:'sponge',memo:'過去実績（中種法）'},
+];
+
+// ─── データ管理 ────────────────────────────────────────────────────────
+function getRecords() { try { return JSON.parse(localStorage.getItem(DB_KEY)||'[]'); } catch { return []; } }
+function saveRecords(r) { localStorage.setItem(DB_KEY, JSON.stringify(r)); }
+function getSettings() {
+  const d={corrWindow:5,autoCorr:true,corrPriority:'user_first',defaultTarget:28.0,machineFriction:5.0,handFriction:0.0};
+  try { return Object.assign(d, JSON.parse(localStorage.getItem(ST_KEY)||'{}')); } catch { return d; }
+}
+function saveSettingsData(s) { localStorage.setItem(ST_KEY, JSON.stringify(s)); }
+
+// ─── 補正値計算（優先度：あなたの記録 > 過去実績データ） ───────────────
+function calcCorrection() {
+  const s = getSettings();
+  if (!s.autoCorr) return 0;
+
+  const all = getRecords().filter(r => r.actualTemp != null);
+  const user = all.filter(r => !r.preloaded);
+  const hist = all.filter(r => r.preloaded);
+
+  let src;
+  if (s.corrPriority === 'user_first') {
+    src = user.length > 0 ? user : hist;
+  } else if (s.corrPriority === 'recent_only') {
+    src = user;
+  } else {
+    src = all;
+  }
+
+  if (src.length === 0) return 0;
+  const w = s.corrWindow > 0 ? Math.min(s.corrWindow, src.length) : src.length;
+  const recent = src.slice(-w);
+  const avg = recent.reduce((a,b) => a + (b.actualTemp - b.targetTemp), 0) / recent.length;
+  return Math.round(-avg * 10) / 10;
+}
+
+// ─── 計算 ──────────────────────────────────────────────────────────────
+let currentMethod = 'straight';
+let currentKneadType = 'machine';
+
+function calculate() {
+  const target  = parseFloat(document.getElementById('target-temp').value) || 28;
+  const friction= parseFloat(document.getElementById('friction').value)    || 5;
+  const room    = parseFloat(document.getElementById('room-temp').value)   || 20;
+  const flour   = parseFloat(document.getElementById('flour-temp').value)  || 20;
+  const sponge  = parseFloat(document.getElementById('sponge-temp').value) || 25;
+
+  const mult = currentMethod === 'sponge' ? 4 : 3;
+  const subtractSum = currentMethod === 'sponge' ? (room + flour + sponge) : (room + flour);
+  const baseWater = (target - friction) * mult - subtractSum;
+  const correction = calcCorrection();
+  const finalWater = Math.round((baseWater + correction) * 10) / 10;
+
+  document.getElementById('result-area').style.display = 'block';
+  document.getElementById('result-temp').textContent = finalWater.toFixed(1);
+
+  // 内訳
+  const bd = document.getElementById('breakdown');
+  const spongeRow = currentMethod==='sponge' ? `<div class="br-row"><span class="lbl">中種温度</span><span>− ${sponge.toFixed(1)} °C</span></div>` : '';
+  bd.innerHTML = `
+    <div class="br-row"><span class="lbl">目標捏ね上げ温度</span><span>${target.toFixed(1)} °C</span></div>
+    <div class="br-row"><span class="lbl">摩擦係数</span><span>− ${friction.toFixed(1)} °C</span></div>
+    <div class="br-row"><span class="lbl">(目標 − 摩擦) × ${mult}</span><span>${((target-friction)*mult).toFixed(1)} °C</span></div>
+    <div class="br-row"><span class="lbl">室温</span><span>− ${room.toFixed(1)} °C</span></div>
+    <div class="br-row"><span class="lbl">粉温度</span><span>− ${flour.toFixed(1)} °C</span></div>
+    ${spongeRow}
+    <div class="br-row"><span class="lbl">基本仕込み水温</span><span>${baseWater.toFixed(1)} °C</span></div>
+    ${correction!==0?`<div class="br-row"><span class="lbl">学習補正値</span><span>${correction>=0?'+':''}${correction.toFixed(1)} °C</span></div>`:''}
+    <div class="br-row sep-above"><span class="lbl">仕込み水温</span><span>${finalWater.toFixed(1)} °C</span></div>
+  `;
+
+  // 補正バッジ
+  const badge = document.getElementById('correction-badge');
+  const corrMsg = document.getElementById('correction-msg');
+  const s = getSettings();
+  const user  = getRecords().filter(r=>!r.preloaded&&r.actualTemp!=null);
+  const hist  = getRecords().filter(r=>r.preloaded&&r.actualTemp!=null);
+  const srcUsed = (s.corrPriority==='user_first'&&user.length>0)||s.corrPriority==='recent_only' ? user : (user.length>0?user:hist);
+  const w = s.corrWindow>0?Math.min(s.corrWindow,srcUsed.length):srcUsed.length;
+
+  if (correction !== 0) {
+    badge.style.display='inline-block';
+    badge.textContent=`学習補正 ${correction>=0?'+':''}${correction.toFixed(1)}°C`;
+    const srcLabel = user.length>0?`あなたの記録${w}件`:`過去実績データ${w}件`;
+    corrMsg.innerHTML=`<div class="info-box ib-green">🧠 ${srcLabel}の平均差異から補正値 <strong>${correction>=0?'+':''}${correction.toFixed(1)}°C</strong> を適用しました。</div>`;
+  } else {
+    badge.style.display='none';
+    corrMsg.innerHTML=hist.length>0||user.length>0?'':`<div class="info-box ib-blue">💡 捏ね上げ後に実際の温度を記録すると、次回から自動補正が始まります。</div>`;
+  }
+
+  // 摩擦係数フィードバック（King Arthur方式）
+  const flPanel = document.getElementById('friction-learn-panel');
+  const recentWithActual = getRecords().filter(r=>!r.preloaded&&r.actualTemp!=null).slice(-3);
+  if (recentWithActual.length>0) {
+    const avgDiff = recentWithActual.reduce((a,b)=>a+(b.actualTemp-b.targetTemp),0)/recentWithActual.length;
+    const suggestedF = Math.round((friction - avgDiff)*10)/10;
+    if (Math.abs(avgDiff) >= 0.5) {
+      flPanel.innerHTML=`<div class="friction-learn">🔧 <strong>摩擦係数の最適化提案</strong><br>
+        直近${recentWithActual.length}件の平均では捏ね上げ温度が目標より<strong>${avgDiff>=0?'+':''}${avgDiff.toFixed(1)}°C</strong>ずれています。<br>
+        摩擦係数を現在の <strong>${friction.toFixed(1)}°C</strong> → <strong>${suggestedF.toFixed(1)}°C</strong> に調整すると精度が向上する可能性があります。
+        <button class="btn btn-secondary btn-sm" style="margin-top:7px;" onclick="applyFrictionSuggestion(${suggestedF})">この摩擦係数を適用する</button>
+      </div>`;
+    } else {
+      flPanel.innerHTML='';
+    }
+  } else {
+    flPanel.innerHTML='';
+  }
+
+  // 水温アドバイス
+  let note='';
+  if (finalWater<0)       note='⚠️ 氷水が必要です（粉を冷凍庫で冷やすことも検討）';
+  else if (finalWater<=3) note='❄️ 水温の実用下限（3°C）です。粉を冷やして対応を';
+  else if (finalWater<5)  note='❄️ 非常に冷たい水が必要です';
+  else if (finalWater>42) note='⚠️ イーストへのダメージに注意（高温すぎます）';
+  else if (finalWater>38) note='♨️ かなり温かい水が必要です';
+  document.getElementById('result-note').textContent=note;
+}
+
+function applyFrictionSuggestion(val) {
+  document.getElementById('friction').value = val.toFixed(1);
+  calculate();
+  showToast('🔧 摩擦係数を更新して再計算しました');
+}
+
+// ─── ステッパー ────────────────────────────────────────────────────────
+function step(id, delta) {
+  const el = document.getElementById(id);
+  let v = parseFloat(el.value)||0;
+  v = Math.round((v+delta)*10)/10;
+  el.value = v.toFixed(1);
+}
+
+// ─── 製法切り替え ──────────────────────────────────────────────────────
+function setMethod(m) {
+  currentMethod = m;
+  document.getElementById('btn-straight').classList.toggle('active', m==='straight');
+  document.getElementById('btn-sponge').classList.toggle('active', m==='sponge');
+  document.getElementById('sponge-field').style.display = m==='sponge'?'block':'none';
+}
+
+// ─── こね方切り替え ────────────────────────────────────────────────────
+function setKneadType(t) {
+  currentKneadType = t;
+  document.getElementById('btn-machine').classList.toggle('active', t==='machine');
+  document.getElementById('btn-hand').classList.toggle('active', t==='hand');
+  const s = getSettings();
+  document.getElementById('friction').value = (t==='machine'?s.machineFriction:s.handFriction).toFixed(1);
+  document.getElementById('friction-hint').textContent = t==='machine'?'機械ごね目安：5〜10°C':'手ごね目安：−5〜4°C';
+}
+
+// ─── プリセット ─────────────────────────────────────────────────────────
+function renderPresets() {
+  const grid = document.getElementById('preset-grid');
+  grid.innerHTML = BREAD_PRESETS.map((p,i) => `
+    <button class="preset-btn" onclick="applyPreset(${i})">
+      <div class="preset-name">${p.icon} ${p.name}</div>
+      <div class="preset-temp">目標 ${p.target}°C　摩擦 ${p.friction}°C<br>${p.hint}</div>
+    </button>
+  `).join('');
+}
+function applyPreset(i) {
+  const p = BREAD_PRESETS[i];
+  document.getElementById('target-temp').value = p.target.toFixed(1);
+  document.getElementById('friction').value = p.friction.toFixed(1);
+  if (p.method) setMethod(p.method);
+  if (p.kneadType) setKneadType(p.kneadType);
+  showToast(`✅ ${p.name}の設定を適用しました`);
+}
+
+// ─── 保存 ──────────────────────────────────────────────────────────────
+function saveRecord() {
+  const target  = parseFloat(document.getElementById('target-temp').value)||28;
+  const friction= parseFloat(document.getElementById('friction').value)||5;
+  const room    = parseFloat(document.getElementById('room-temp').value)||20;
+  const flour   = parseFloat(document.getElementById('flour-temp').value)||20;
+  const sponge  = parseFloat(document.getElementById('sponge-temp').value)||25;
+  const correction = calcCorrection();
+  const mult = currentMethod==='sponge'?4:3;
+  const sub  = currentMethod==='sponge'?(room+flour+sponge):(room+flour);
+  const base = (target-friction)*mult - sub;
+  const final= Math.round((base+correction)*10)/10;
+  const actualInput = document.getElementById('actual-temp').value;
+  const actualTemp = actualInput!==''?parseFloat(actualInput):null;
+
+  const rec = {
+    id: Date.now().toString(),
+    date: document.getElementById('calc-date').value||new Date().toISOString().split('T')[0],
+    method: currentMethod,
+    targetTemp:target, roomTemp:room, flourTemp:flour,
+    spongeTemp: currentMethod==='sponge'?sponge:null,
+    friction, kneadType:currentKneadType,
+    baseWaterTemp:Math.round(base*10)/10, correctionApplied:correction,
+    waterTemp:final, actualTemp,
+    memo:document.getElementById('calc-memo').value,
+    savedAt:new Date().toISOString(), preloaded:false,
+  };
+  const recs=getRecords(); recs.push(rec); saveRecords(recs);
+  document.getElementById('actual-temp').value='';
+  showToast('✅ 保存しました');
+}
+
+// ─── 履歴 ──────────────────────────────────────────────────────────────
+let editingId=null;
+function openModal(id) {
+  editingId=id;
+  const r=getRecords().find(x=>x.id===id);
+  document.getElementById('modal-actual-temp').value=r?.actualTemp??'';
+  document.getElementById('modal-actual').classList.add('show');
+}
+function closeModal() { document.getElementById('modal-actual').classList.remove('show'); }
+function saveActualTemp() {
+  const v=parseFloat(document.getElementById('modal-actual-temp').value);
+  if(isNaN(v)){showToast('⚠️ 温度を入力してください');return;}
+  const recs=getRecords();
+  const i=recs.findIndex(r=>r.id===editingId);
+  if(i!==-1){recs[i].actualTemp=v;saveRecords(recs);}
+  closeModal(); showToast('✅ 捏ね上げ温度を保存しました');
+  renderHistory(); renderStats();
+}
+
+function renderHistory() {
+  const recs=getRecords().slice().reverse();
+  const el=document.getElementById('history-list');
+  if(!recs.length){
+    el.innerHTML=`<div class="empty-state"><div class="icon">📋</div><p>まだ記録がありません。<br>計算してアーカイブに保存しましょう。</p></div>`;
+    return;
+  }
+  el.innerHTML=recs.map(r=>{
+    const hasA=r.actualTemp!=null;
+    const diff=hasA?(r.actualTemp-r.targetTemp):null;
+    const diffStr=diff!=null?(diff>=0?`+${diff.toFixed(1)}`:`${diff.toFixed(1)}`):null;
+    const cls=r.preloaded?'preloaded':(hasA?'has-actual':'no-actual');
+    const methodLabel=r.method==='sponge'?'中種法':'ストレート法';
+    const kLabel=r.kneadType==='hand'?'手ごね':'機械ごね';
+    return `<div class="arch-item ${cls}">
+      <div class="arch-meta">
+        <div>
+          <div class="arch-date">${r.date}${r.memo?' — '+r.memo:''}</div>
+          <div style="font-size:0.7rem;color:#9a8060;">${methodLabel}　${kLabel}　摩擦${r.friction?.toFixed(1)??'--'}°C</div>
+        </div>
+        <div class="chips">
+          <span class="chip chip-blue">目標${r.targetTemp.toFixed(1)}°C</span>
+          <span class="chip chip-gray">水温${r.waterTemp.toFixed(1)}°C</span>
+          ${hasA?`<span class="chip chip-green">実際${r.actualTemp.toFixed(1)}°C</span>`:''}
+          ${r.method==='sponge'?`<span class="chip chip-purple">中種法</span>`:''}
+        </div>
+      </div>
+      <div class="arch-detail">
+        室温${r.roomTemp.toFixed(1)}°C　粉温${r.flourTemp.toFixed(1)}°C
+        ${r.spongeTemp!=null?`　中種温${r.spongeTemp.toFixed(1)}°C`:''}
+        ${r.correctionApplied?`　補正${r.correctionApplied>=0?'+':''}${r.correctionApplied.toFixed(1)}°C`:''}
+        ${hasA?`　<strong>差異 ${diffStr}°C</strong>`:'　<em style="color:#c08040;">捏ね上げ温度 未入力</em>'}
+      </div>
+      <div class="arch-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openModal('${r.id}')">
+          ${hasA?'✏️ 編集':'＋ 捏ね上げ温度を入力'}
+        </button>
+        ${!r.preloaded?`<button class="btn btn-danger btn-sm" onclick="deleteRecord('${r.id}')">削除</button>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+function deleteRecord(id) {
+  if(!confirm('削除しますか？'))return;
+  saveRecords(getRecords().filter(r=>r.id!==id));
+  renderHistory(); renderStats(); showToast('🗑️ 削除しました');
+}
+
+// ─── 統計 ──────────────────────────────────────────────────────────────
+function renderStats() {
+  const all   = getRecords();
+  const withA = all.filter(r=>r.actualTemp!=null);
+  const user  = withA.filter(r=>!r.preloaded);
+
+  document.getElementById('st-total').textContent = all.length;
+  document.getElementById('st-with-actual').textContent = withA.length;
+
+  if(withA.length>0){
+    const diffs=withA.map(r=>Math.abs(r.actualTemp-r.targetTemp));
+    document.getElementById('st-avg-err').textContent=(diffs.reduce((a,b)=>a+b,0)/diffs.length).toFixed(1)+'°C';
+  } else { document.getElementById('st-avg-err').textContent='--'; }
+
+  const cf=calcCorrection();
+  document.getElementById('st-correction').textContent=(cf>=0?'+':'')+cf.toFixed(1)+'°C';
+
+  // 摩擦係数最適化パネル
+  const foEl=document.getElementById('friction-optimize');
+  if(user.length>=3){
+    const diffs=user.map(r=>r.actualTemp-r.targetTemp);
+    const avg=diffs.reduce((a,b)=>a+b,0)/diffs.length;
+    const s=getSettings();
+    const sugF=Math.round((s.machineFriction-avg)*10)/10;
+    foEl.innerHTML=`<div class="formula-box">
+      あなたの記録<strong>${user.length}件</strong>の平均差異：<strong>${avg>=0?'+':''}${avg.toFixed(2)}°C</strong><br>
+      現在の摩擦係数（機械）：<strong>${s.machineFriction.toFixed(1)}°C</strong><br>
+      推奨摩擦係数：<strong>${sugF.toFixed(1)}°C</strong>（差異を±0に近づける値）<br>
+      <span style="font-size:0.7rem;color:#9a8060;">設定タブ → デフォルト値から変更できます</span>
+    </div>`;
+  } else {
+    foEl.innerHTML=`<div class="info-box ib-blue">あなたの記録が3件以上になると、あなたの設備に最適な摩擦係数を提案します。<br>現在${user.length}件 → あと${3-user.length}件で算出開始。</div>`;
+  }
+
+  // 補正サマリー
+  const s=getSettings();
+  const srcUsed=user.length>0?user:(withA.filter(r=>r.preloaded));
+  const w=s.corrWindow>0?Math.min(s.corrWindow,srcUsed.length):srcUsed.length;
+  const summEl=document.getElementById('correction-summary');
+  if(srcUsed.length===0){
+    summEl.innerHTML='<div class="info-box ib-blue">捏ね上げ温度を記録すると自動補正が始まります。</div>';
+  } else {
+    summEl.innerHTML=`<div class="info-box ib-green">
+      直近${w}件から補正値 <strong>${cf>=0?'+':''}${cf.toFixed(1)}°C</strong> を算出中。<br>
+      ${user.length===0?'現在は<strong>過去実績データ</strong>を使用（自分の記録が追加されると自動的に切り替わります）':'<strong>あなたの記録を優先して</strong>補正値を計算しています'}
+    </div>`;
+  }
+  renderChart(withA);
+}
+
+function renderChart(recs) {
+  const canvas=document.getElementById('chart'), empty=document.getElementById('chart-empty');
+  if(recs.length<2){canvas.style.display='none';empty.style.display='block';return;}
+  canvas.style.display='block';empty.style.display='none';
+  const W=canvas.offsetWidth||340, H=160;
+  canvas.width=W; canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  const diffs=recs.map(r=>r.actualTemp-r.targetTemp);
+  const mn=Math.min(...diffs,-1), mx=Math.max(...diffs,1), range=mx-mn||2;
+  const pL=44,pR=14,pT=13,pB=26, w=W-pL-pR, h=H-pT-pB;
+  ctx.clearRect(0,0,W,H);
+  for(let v=Math.ceil(mn);v<=Math.floor(mx);v++){
+    const y=pT+h-((v-mn)/range)*h;
+    ctx.strokeStyle='#e8d8b0';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(pL,y);ctx.lineTo(W-pR,y);ctx.stroke();
+    ctx.fillStyle='#9a8060';ctx.font='10px sans-serif';ctx.textAlign='right';
+    ctx.fillText(v+'°',pL-4,y+4);
+  }
+  const zy=pT+h-((0-mn)/range)*h;
+  ctx.strokeStyle='#c4952a';ctx.lineWidth=1.5;ctx.setLineDash([4,3]);
+  ctx.beginPath();ctx.moveTo(pL,zy);ctx.lineTo(W-pR,zy);ctx.stroke();ctx.setLineDash([]);
+  ctx.strokeStyle='#8b6914';ctx.lineWidth=2;
+  ctx.beginPath();
+  recs.forEach((r,i)=>{
+    const x=pL+(i/(recs.length-1||1))*w, y=pT+h-((diffs[i]-mn)/range)*h;
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+  recs.forEach((r,i)=>{
+    const x=pL+(i/(recs.length-1||1))*w, y=pT+h-((diffs[i]-mn)/range)*h;
+    ctx.beginPath();ctx.arc(x,y,4,0,Math.PI*2);
+    ctx.fillStyle=r.preloaded?'#7090c0':'#c4952a';ctx.fill();
+  });
+  ctx.fillStyle='#9a8060';ctx.font='9px sans-serif';ctx.textAlign='center';
+  const step=Math.max(1,Math.floor(recs.length/5));
+  recs.forEach((r,i)=>{
+    if(i%step===0||i===recs.length-1){
+      const x=pL+(i/(recs.length-1||1))*w;
+      ctx.fillText(r.date?r.date.slice(5):'',x,H-6);
+    }
+  });
+}
+
+// ─── 設定 ──────────────────────────────────────────────────────────────
+function loadSettingsUI() {
+  const s=getSettings();
+  document.getElementById('def-target').value=s.defaultTarget.toFixed(1);
+  document.getElementById('def-machine').value=s.machineFriction.toFixed(1);
+  document.getElementById('def-hand').value=s.handFriction.toFixed(1);
+  document.getElementById('corr-window').value=s.corrWindow;
+  document.getElementById('auto-corr').value=s.autoCorr?'1':'0';
+  document.getElementById('corr-priority').value=s.corrPriority||'user_first';
+}
+function saveDefaults() {
+  const s=getSettings();
+  s.defaultTarget  =parseFloat(document.getElementById('def-target').value)||28;
+  s.machineFriction=parseFloat(document.getElementById('def-machine').value)||5;
+  s.handFriction   =parseFloat(document.getElementById('def-hand').value)??0;
+  saveSettingsData(s);
+  document.getElementById('target-temp').value=s.defaultTarget.toFixed(1);
+  showToast('✅ デフォルト値を保存しました');
+}
+function saveSettings() {
+  const s=getSettings();
+  s.corrWindow  =parseInt(document.getElementById('corr-window').value)||5;
+  s.autoCorr    =document.getElementById('auto-corr').value==='1';
+  s.corrPriority=document.getElementById('corr-priority').value;
+  saveSettingsData(s);
+  showToast('✅ 設定を保存しました');
+}
+
+// ─── CSV/JSON ──────────────────────────────────────────────────────────
+function exportCSV() {
+  const recs=getRecords();
+  if(!recs.length){showToast('⚠️ データがありません');return;}
+  const hdr='日付,製法,こね方,目標温度,摩擦係数,室温,粉温,中種温,基本水温,補正値,仕込み水温,実際の捏ね上げ,差異,メモ';
+  const rows=recs.map(r=>{
+    const d=r.actualTemp!=null?(r.actualTemp-r.targetTemp).toFixed(1):'';
+    return [r.date,r.method,r.kneadType,r.targetTemp,r.friction,r.roomTemp,r.flourTemp,r.spongeTemp??'',r.baseWaterTemp,r.correctionApplied,r.waterTemp,r.actualTemp??'',d,r.memo||''].join(',');
+  });
+  const blob=new Blob(['\uFEFF'+[hdr,...rows].join('\n')],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='パン仕込み水温記録.csv';a.click();URL.revokeObjectURL(url);
+  showToast('📥 CSVを書き出しました');
+}
+function exportJSON() {
+  const d={records:getRecords(),settings:getSettings(),exportedAt:new Date().toISOString(),version:3};
+  const blob=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='パン水温バックアップ.json';a.click();URL.revokeObjectURL(url);
+  showToast('📥 JSONを書き出しました');
+}
+function importJSON() {
+  const inp=document.createElement('input');inp.type='file';inp.accept='.json';
+  inp.onchange=e=>{
+    const f=e.target.files[0];if(!f)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      try{
+        const d=JSON.parse(ev.target.result);
+        if(d.records)saveRecords(d.records);
+        if(d.settings)saveSettingsData(d.settings);
+        showToast('✅ インポートしました');
+        renderHistory();renderStats();loadSettingsUI();
+      }catch{showToast('⚠️ ファイル読み込みに失敗しました');}
+    };
+    reader.readAsText(f);
+  };
+  inp.click();
+}
+function confirmClear() {
+  if(!confirm('すべての記録を削除しますか？\n過去実績データも削除されます。'))return;
+  localStorage.removeItem(DB_KEY);
+  showToast('🗑️ 削除しました');
+  renderHistory();renderStats();
+}
+
+// ─── タブ ──────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  ['calc','history','stats','settings'].forEach((t,i)=>{
+    if(t===name) document.querySelectorAll('.tab')[i].classList.add('active');
+  });
+  if(name==='history')  renderHistory();
+  if(name==='stats')    renderStats();
+  if(name==='settings') loadSettingsUI();
+}
+
+// ─── トースト ──────────────────────────────────────────────────────────
+function showToast(msg) {
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2500);
+}
+
+// ─── 初期化 ────────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  document.getElementById('calc-date').value=new Date().toISOString().split('T')[0];
+
+  // 過去実績データの初期ロード（初回のみ）
+  if(getRecords().length===0){
+    const preloaded=HISTORICAL_DATA.map((r,i)=>({
+      ...r,
+      id:'hist_'+i,
+      baseWaterTemp:r.method==='sponge'
+        ?Math.round(((r.targetTemp-r.friction)*4-(r.roomTemp+r.flourTemp+(r.spongeTemp||0)))*10)/10
+        :Math.round(((r.targetTemp-r.friction)*3-(r.roomTemp+r.flourTemp))*10)/10,
+      correctionApplied:0,
+      savedAt:r.date+'T00:00:00.000Z',
+      preloaded:true,
+    }));
+    saveRecords(preloaded);
+  }
+
+  // デフォルト値を適用
+  const s=getSettings();
+  document.getElementById('target-temp').value=s.defaultTarget.toFixed(1);
+  document.getElementById('friction').value=s.machineFriction.toFixed(1);
+
+  // プリセット描画
+  renderPresets();
+});
+</script>
+</body>
+</html>
