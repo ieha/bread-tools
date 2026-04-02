@@ -167,6 +167,17 @@
 
     .formula-box { background:#fffbf0; border:1.5px solid #e8d070; border-radius:8px; padding:9px 12px; font-size:0.76rem; color:#6a4a00; line-height:1.8; margin-bottom:10px; }
 
+    /* ラジオボタングループ */
+    .radio-group { display:flex; flex-direction:column; gap:7px; margin-top:4px; }
+    .radio-label {
+      display:flex; align-items:center; gap:9px; cursor:pointer;
+      font-size:0.83rem; color:#3a2e1e; padding:9px 11px;
+      border:1.5px solid #ddd0b8; border-radius:8px; background:#fffdf8; transition:all 0.15s;
+    }
+    .radio-label:has(input:checked) { border-color:#c4952a; background:#fff8e8; color:#5a3a00; }
+    .radio-label input[type="radio"] { accent-color:#8b6914; width:16px; height:16px; flex-shrink:0; }
+    .radio-sub { font-size:0.72rem; color:#9a8060; margin-top:1px; }
+
     /* 中種温度フィールド */
     #sponge-field { display:none; }
   </style>
@@ -296,11 +307,41 @@
     <!-- 捏ね上げ後記録 -->
     <div class="card" style="padding:14px;">
       <div class="card-title">✅ 捏ね上げ後に記録</div>
+
+      <!-- 仕込み水温の使用方法 -->
+      <div class="field">
+        <label>仕込んだ水温</label>
+        <div class="radio-group">
+          <label class="radio-label">
+            <input type="radio" name="water-temp-method" id="wt-auto" value="auto" checked onchange="onWaterTempMethodChange()">
+            <div>
+              <div>自動計算された水温で仕込んだ</div>
+              <div class="radio-sub" id="wt-auto-label">（計算値をそのまま使用）</div>
+            </div>
+          </label>
+          <label class="radio-label">
+            <input type="radio" name="water-temp-method" id="wt-custom" value="custom" onchange="onWaterTempMethodChange()">
+            <div>任意の水温で仕込んだ</div>
+          </label>
+        </div>
+      </div>
+
+      <!-- 任意水温フィールド（custom選択時のみ表示） -->
+      <div class="field" id="custom-water-field" style="display:none;">
+        <label>実際に使った仕込み水温 (°C)</label>
+        <div class="stepper">
+          <button class="sb" onclick="step('used-water-temp',-0.1)">−</button>
+          <input type="number" id="used-water-temp" placeholder="例：35.0" step="0.1" min="-10" max="70" inputmode="decimal">
+          <button class="sb" onclick="step('used-water-temp',+0.1)">＋</button>
+        </div>
+      </div>
+
+      <!-- 実際の捏ね上げ温度 -->
       <div class="field">
         <label>実際の捏ね上げ温度 (°C)</label>
         <div class="stepper">
           <button class="sb" onclick="step('actual-temp',-0.1)">−</button>
-          <input type="number" id="actual-temp" placeholder="例：27.8" step="0.1" min="0" max="50">
+          <input type="number" id="actual-temp" placeholder="例：27.8" step="0.1" min="0" max="50" inputmode="decimal">
           <button class="sb" onclick="step('actual-temp',+0.1)">＋</button>
         </div>
         <div class="hint">記録が積み重なるほど精度が上がります</div>
@@ -435,13 +476,37 @@
 <!-- 捏ね上げ温度入力モーダル -->
 <div class="modal-overlay" id="modal-actual">
   <div class="modal">
-    <div class="modal-title">🌡️ 実際の捏ね上げ温度を入力</div>
+    <div class="modal-title">🌡️ 仕込み結果を記録</div>
     <input type="hidden" id="modal-id">
+
+    <!-- 仕込み水温の使用方法 -->
     <div class="field">
-      <label>捏ね上げ温度 (°C)</label>
+      <label>仕込んだ水温</label>
+      <div class="radio-group">
+        <label class="radio-label">
+          <input type="radio" name="modal-wt-method" id="modal-wt-auto" value="auto" checked onchange="onModalWaterTempMethodChange()">
+          <div>自動計算された水温で仕込んだ</div>
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="modal-wt-method" id="modal-wt-custom" value="custom" onchange="onModalWaterTempMethodChange()">
+          <div>任意の水温で仕込んだ</div>
+        </label>
+      </div>
+    </div>
+    <div class="field" id="modal-custom-water-field" style="display:none;">
+      <label>実際に使った仕込み水温 (°C)</label>
+      <div class="stepper">
+        <button class="sb" onclick="step('modal-used-water-temp',-0.1)">−</button>
+        <input type="number" id="modal-used-water-temp" step="0.1" min="-10" max="70" inputmode="decimal">
+        <button class="sb" onclick="step('modal-used-water-temp',+0.1)">＋</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>実際の捏ね上げ温度 (°C)</label>
       <div class="stepper">
         <button class="sb" onclick="step('modal-actual-temp',-0.1)">−</button>
-        <input type="number" id="modal-actual-temp" step="0.1" min="0" max="50">
+        <input type="number" id="modal-actual-temp" step="0.1" min="0" max="50" inputmode="decimal">
         <button class="sb" onclick="step('modal-actual-temp',+0.1)">＋</button>
       </div>
     </div>
@@ -504,6 +569,19 @@ function getSettings() {
 }
 function saveSettingsData(s) { localStorage.setItem(ST_KEY, JSON.stringify(s)); }
 
+// ─── 有効誤差の計算（任意水温を使った場合も計算式のずれを推定） ──────────
+// 考え方：任意水温で仕込んだ場合、「もし計算水温を使っていたら捏ね上げ温度はいくつか」を逆算
+//   仮想捏ね上げ温度 = 実際の捏ね上げ温度 + (計算水温 − 実使用水温) ÷ 倍率
+//   これで "計算式そのものの誤差" を推定できる
+function calcEffectiveError(r) {
+  if (r.waterTempSource === 'custom' && r.usedWaterTemp != null && r.waterTemp != null) {
+    const mult = r.method === 'sponge' ? 4 : 3;
+    const hypotheticalActual = r.actualTemp + (r.waterTemp - r.usedWaterTemp) / mult;
+    return hypotheticalActual - r.targetTemp;
+  }
+  return r.actualTemp - r.targetTemp;
+}
+
 // ─── 補正値計算（優先度：あなたの記録 > 過去実績データ） ───────────────
 function calcCorrection() {
   const s = getSettings();
@@ -525,7 +603,7 @@ function calcCorrection() {
   if (src.length === 0) return 0;
   const w = s.corrWindow > 0 ? Math.min(s.corrWindow, src.length) : src.length;
   const recent = src.slice(-w);
-  const avg = recent.reduce((a,b) => a + (b.actualTemp - b.targetTemp), 0) / recent.length;
+  const avg = recent.reduce((a, b) => a + calcEffectiveError(b), 0) / recent.length;
   return Math.round(-avg * 10) / 10;
 }
 
@@ -610,6 +688,10 @@ function calculate() {
   else if (finalWater>42) note='⚠️ イーストへのダメージに注意（高温すぎます）';
   else if (finalWater>38) note='♨️ かなり温かい水が必要です';
   document.getElementById('result-note').textContent=note;
+
+  // ラジオボタンの「自動計算水温」ラベルを更新
+  const autoLabel = document.getElementById('wt-auto-label');
+  if (autoLabel) autoLabel.textContent = `（計算値 ${finalWater.toFixed(1)}°C をそのまま使用）`;
 }
 
 function applyFrictionSuggestion(val) {
@@ -624,6 +706,29 @@ function step(id, delta) {
   let v = parseFloat(el.value)||0;
   v = Math.round((v+delta)*10)/10;
   el.value = v.toFixed(1);
+  el.dispatchEvent(new Event('input'));
+}
+
+// ─── 数値入力制限（e/E キーを無効化） ────────────────────────────────
+function applyNumberInputRestriction(el) {
+  el.addEventListener('keydown', e => {
+    if (e.key === 'e' || e.key === 'E') e.preventDefault();
+  });
+}
+
+// ─── 仕込み水温使用方法の切り替え ────────────────────────────────────
+function onWaterTempMethodChange() {
+  const isCustom = document.getElementById('wt-custom').checked;
+  document.getElementById('custom-water-field').style.display = isCustom ? 'block' : 'none';
+  // 計算値ラベル更新
+  const resultTemp = document.getElementById('result-temp').textContent;
+  if (resultTemp !== '--') {
+    document.getElementById('wt-auto-label').textContent = `（計算値 ${resultTemp}°C をそのまま使用）`;
+  }
+}
+function onModalWaterTempMethodChange() {
+  const isCustom = document.getElementById('modal-wt-custom').checked;
+  document.getElementById('modal-custom-water-field').style.display = isCustom ? 'block' : 'none';
 }
 
 // ─── 製法切り替え ──────────────────────────────────────────────────────
@@ -678,6 +783,12 @@ function saveRecord() {
   const actualInput = document.getElementById('actual-temp').value;
   const actualTemp = actualInput!==''?parseFloat(actualInput):null;
 
+  const waterTempSource = document.getElementById('wt-auto').checked ? 'auto' : 'custom';
+  const usedWaterTempInput = document.getElementById('used-water-temp').value;
+  const usedWaterTemp = waterTempSource === 'auto'
+    ? final
+    : (usedWaterTempInput !== '' ? parseFloat(usedWaterTempInput) : null);
+
   const rec = {
     id: Date.now().toString(),
     date: document.getElementById('calc-date').value||new Date().toISOString().split('T')[0],
@@ -686,12 +797,15 @@ function saveRecord() {
     spongeTemp: currentMethod==='sponge'?sponge:null,
     friction, kneadType:currentKneadType,
     baseWaterTemp:Math.round(base*10)/10, correctionApplied:correction,
-    waterTemp:final, actualTemp,
+    waterTemp:final, waterTempSource, usedWaterTemp, actualTemp,
     memo:document.getElementById('calc-memo').value,
     savedAt:new Date().toISOString(), preloaded:false,
   };
   const recs=getRecords(); recs.push(rec); saveRecords(recs);
   document.getElementById('actual-temp').value='';
+  document.getElementById('used-water-temp').value='';
+  document.getElementById('wt-auto').checked=true;
+  onWaterTempMethodChange();
   showToast('✅ 保存しました');
 }
 
@@ -701,16 +815,35 @@ function openModal(id) {
   editingId=id;
   const r=getRecords().find(x=>x.id===id);
   document.getElementById('modal-actual-temp').value=r?.actualTemp??'';
+  // 仕込み水温方法を復元
+  const src=r?.waterTempSource||'auto';
+  document.getElementById('modal-wt-auto').checked=(src==='auto');
+  document.getElementById('modal-wt-custom').checked=(src==='custom');
+  // usedWaterTemp
+  const uwt=r?.usedWaterTemp;
+  document.getElementById('modal-used-water-temp').value=(src==='custom'&&uwt!=null)?uwt:'';
+  document.getElementById('modal-custom-water-field').style.display=(src==='custom')?'block':'none';
   document.getElementById('modal-actual').classList.add('show');
 }
 function closeModal() { document.getElementById('modal-actual').classList.remove('show'); }
 function saveActualTemp() {
   const v=parseFloat(document.getElementById('modal-actual-temp').value);
-  if(isNaN(v)){showToast('⚠️ 温度を入力してください');return;}
+  if(isNaN(v)){showToast('⚠️ 捏ね上げ温度を入力してください');return;}
+  const waterTempSource=document.getElementById('modal-wt-auto').checked?'auto':'custom';
+  const uwtInput=document.getElementById('modal-used-water-temp').value;
   const recs=getRecords();
   const i=recs.findIndex(r=>r.id===editingId);
-  if(i!==-1){recs[i].actualTemp=v;saveRecords(recs);}
-  closeModal(); showToast('✅ 捏ね上げ温度を保存しました');
+  if(i!==-1){
+    recs[i].actualTemp=v;
+    recs[i].waterTempSource=waterTempSource;
+    if(waterTempSource==='custom'){
+      recs[i].usedWaterTemp=uwtInput!==''?parseFloat(uwtInput):null;
+    } else {
+      recs[i].usedWaterTemp=recs[i].waterTemp;
+    }
+    saveRecords(recs);
+  }
+  closeModal(); showToast('✅ 捏ね上げ記録を保存しました');
   renderHistory(); renderStats();
 }
 
@@ -745,7 +878,14 @@ function renderHistory() {
         室温${r.roomTemp.toFixed(1)}°C　粉温${r.flourTemp.toFixed(1)}°C
         ${r.spongeTemp!=null?`　中種温${r.spongeTemp.toFixed(1)}°C`:''}
         ${r.correctionApplied?`　補正${r.correctionApplied>=0?'+':''}${r.correctionApplied.toFixed(1)}°C`:''}
+        ${(r.waterTempSource==='custom'&&r.usedWaterTemp!=null)?`　<span style="color:#1a6030;">実使用水温${r.usedWaterTemp.toFixed(1)}°C</span>`:''}
         ${hasA?`　<strong>差異 ${diffStr}°C</strong>`:'　<em style="color:#c08040;">捏ね上げ温度 未入力</em>'}
+        ${(r.waterTempSource==='custom'&&r.usedWaterTemp!=null&&hasA)?(()=>{
+          const mult=r.method==='sponge'?4:3;
+          const hyp=r.actualTemp+(r.waterTemp-r.usedWaterTemp)/mult;
+          const hypDiff=hyp-r.targetTemp;
+          return `　<span style="font-size:0.7rem;color:#7a5020;">計算式推定差異${hypDiff>=0?'+':''}${hypDiff.toFixed(1)}°C</span>`;
+        })():''}
       </div>
       <div class="arch-actions">
         <button class="btn btn-secondary btn-sm" onclick="openModal('${r.id}')">
@@ -772,7 +912,7 @@ function renderStats() {
   document.getElementById('st-with-actual').textContent = withA.length;
 
   if(withA.length>0){
-    const diffs=withA.map(r=>Math.abs(r.actualTemp-r.targetTemp));
+    const diffs=withA.map(r=>Math.abs(calcEffectiveError(r)));
     document.getElementById('st-avg-err').textContent=(diffs.reduce((a,b)=>a+b,0)/diffs.length).toFixed(1)+'°C';
   } else { document.getElementById('st-avg-err').textContent='--'; }
 
@@ -782,7 +922,7 @@ function renderStats() {
   // 摩擦係数最適化パネル
   const foEl=document.getElementById('friction-optimize');
   if(user.length>=3){
-    const diffs=user.map(r=>r.actualTemp-r.targetTemp);
+    const diffs=user.map(r=>calcEffectiveError(r));
     const avg=diffs.reduce((a,b)=>a+b,0)/diffs.length;
     const s=getSettings();
     const sugF=Math.round((s.machineFriction-avg)*10)/10;
@@ -819,7 +959,7 @@ function renderChart(recs) {
   const W=canvas.offsetWidth||340, H=160;
   canvas.width=W; canvas.height=H;
   const ctx=canvas.getContext('2d');
-  const diffs=recs.map(r=>r.actualTemp-r.targetTemp);
+  const diffs=recs.map(r=>calcEffectiveError(r));
   const mn=Math.min(...diffs,-1), mx=Math.max(...diffs,1), range=mx-mn||2;
   const pL=44,pR=14,pT=13,pB=26, w=W-pL-pR, h=H-pT-pB;
   ctx.clearRect(0,0,W,H);
@@ -887,10 +1027,12 @@ function saveSettings() {
 function exportCSV() {
   const recs=getRecords();
   if(!recs.length){showToast('⚠️ データがありません');return;}
-  const hdr='日付,製法,こね方,目標温度,摩擦係数,室温,粉温,中種温,基本水温,補正値,仕込み水温,実際の捏ね上げ,差異,メモ';
+  const hdr='日付,製法,こね方,目標温度,摩擦係数,室温,粉温,中種温,基本水温,補正値,計算水温,仕込み水温区分,実際使用水温,実際の捏ね上げ,差異,メモ';
   const rows=recs.map(r=>{
     const d=r.actualTemp!=null?(r.actualTemp-r.targetTemp).toFixed(1):'';
-    return [r.date,r.method,r.kneadType,r.targetTemp,r.friction,r.roomTemp,r.flourTemp,r.spongeTemp??'',r.baseWaterTemp,r.correctionApplied,r.waterTemp,r.actualTemp??'',d,r.memo||''].join(',');
+    const src=r.waterTempSource||'auto';
+    const usedWt=r.usedWaterTemp!=null?r.usedWaterTemp:'';
+    return [r.date,r.method,r.kneadType,r.targetTemp,r.friction,r.roomTemp,r.flourTemp,r.spongeTemp??'',r.baseWaterTemp,r.correctionApplied,r.waterTemp,src,usedWt,r.actualTemp??'',d,r.memo||''].join(',');
   });
   const blob=new Blob(['\uFEFF'+[hdr,...rows].join('\n')],{type:'text/csv;charset=utf-8;'});
   const url=URL.createObjectURL(blob),a=document.createElement('a');
@@ -980,6 +1122,9 @@ window.addEventListener('load', () => {
   ['target-temp','friction','room-temp','flour-temp','sponge-temp'].forEach(id => {
     document.getElementById(id).addEventListener('input', calculate);
   });
+
+  // 全ての数値入力に e/E キー入力制限を適用
+  document.querySelectorAll('input[type="number"]').forEach(applyNumberInputRestriction);
 
   // 初期表示時に即計算
   calculate();
