@@ -94,9 +94,25 @@
     .result-note  { font-size:0.74rem; opacity:0.85; margin-top:7px; min-height:1em; }
     .badge { display:inline-block; background:rgba(255,255,255,0.25); border-radius:20px; padding:2px 10px; font-size:0.72rem; margin-top:5px; }
 
-    .breakdown {
+    /* アコーディオン（計算内訳） */
+    .accordion-wrap { margin-bottom:11px; }
+    .accordion-hd {
+      display:flex; justify-content:space-between; align-items:center;
+      cursor:pointer; padding:8px 12px;
       background:#fffdf8; border:1px solid #f0e8d0; border-radius:8px;
-      padding:10px 12px; margin-bottom:11px;
+      font-size:0.78rem; font-weight:600; color:#7a6030; user-select:none;
+      transition:background 0.15s;
+    }
+    .accordion-hd:hover { background:#f5f0e8; }
+    .accordion-hd.open { border-radius:8px 8px 0 0; }
+    .accordion-bd { display:none; }
+    .accordion-bd.open { display:block; }
+    .accordion-arrow { transition:transform 0.2s; font-size:0.7rem; color:#9a8060; }
+    .accordion-arrow.open { transform:rotate(180deg); }
+
+    .breakdown {
+      background:#fffdf8; border:1px solid #f0e8d0; border-top:none; border-radius:0 0 8px 8px;
+      padding:10px 12px;
     }
     .br-row { display:flex; justify-content:space-between; font-size:0.78rem; padding:3px 0; border-bottom:1px dashed #f0e8d0; }
     .br-row:last-child { border-bottom:none; font-weight:700; }
@@ -229,13 +245,6 @@
     </div>
   </div>
 
-  <!-- パン種別クイックセット -->
-  <div class="card">
-    <div class="card-title">⚡ パン種別クイックセット</div>
-    <div class="preset-grid" id="preset-grid"></div>
-    <div class="hint">タップすると目標温度と摩擦係数が自動入力されます</div>
-  </div>
-
   <!-- 温度入力 -->
   <div class="card">
     <div class="card-title">🌡️ 温度入力（0.1°C 単位）</div>
@@ -300,7 +309,13 @@
       <div class="result-note" id="result-note"></div>
     </div>
 
-    <div class="breakdown" id="breakdown"></div>
+    <div class="accordion-wrap" id="breakdown-wrap" style="display:none;">
+      <div class="accordion-hd" id="breakdown-header" onclick="toggleBreakdown()">
+        <span>📊 計算内訳</span>
+        <span class="accordion-arrow" id="breakdown-arrow">▼</span>
+      </div>
+      <div class="accordion-bd" id="breakdown"></div>
+    </div>
     <div id="correction-msg"></div>
     <div id="friction-learn-panel"></div>
 
@@ -473,11 +488,88 @@
   </div>
 </div>
 
-<!-- 捏ね上げ温度入力モーダル -->
+<!-- 記録編集モーダル -->
 <div class="modal-overlay" id="modal-actual">
   <div class="modal">
-    <div class="modal-title">🌡️ 仕込み結果を記録</div>
+    <div class="modal-title">✏️ 記録を編集</div>
     <input type="hidden" id="modal-id">
+
+    <div class="row2">
+      <div class="field">
+        <label>日付</label>
+        <input type="date" id="modal-date">
+      </div>
+      <div class="field">
+        <label>メモ</label>
+        <input type="text" id="modal-memo" placeholder="食パン など">
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label>製法</label>
+        <select id="modal-method" onchange="onModalMethodChange()">
+          <option value="straight">ストレート法</option>
+          <option value="sponge">中種法</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>こね方</label>
+        <select id="modal-knead-type">
+          <option value="machine">機械ごね</option>
+          <option value="hand">手ごね</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label>目標捏ね上げ温度 (°C)</label>
+        <div class="stepper">
+          <button class="sb" onclick="step('modal-target-temp',-0.1)">−</button>
+          <input type="number" id="modal-target-temp" step="0.1" min="0" max="50">
+          <button class="sb" onclick="step('modal-target-temp',+0.1)">＋</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>摩擦係数 (°C)</label>
+        <div class="stepper">
+          <button class="sb" onclick="step('modal-friction',-0.1)">−</button>
+          <input type="number" id="modal-friction" step="0.1" min="-10" max="20">
+          <button class="sb" onclick="step('modal-friction',+0.1)">＋</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label>室温 (°C)</label>
+        <div class="stepper">
+          <button class="sb" onclick="step('modal-room-temp',-0.1)">−</button>
+          <input type="number" id="modal-room-temp" step="0.1" min="-10" max="50">
+          <button class="sb" onclick="step('modal-room-temp',+0.1)">＋</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>粉温度 (°C)</label>
+        <div class="stepper">
+          <button class="sb" onclick="step('modal-flour-temp',-0.1)">−</button>
+          <input type="number" id="modal-flour-temp" step="0.1" min="-10" max="50">
+          <button class="sb" onclick="step('modal-flour-temp',+0.1)">＋</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="field" id="modal-sponge-field" style="display:none;">
+      <label>中種温度 (°C)</label>
+      <div class="stepper">
+        <button class="sb" onclick="step('modal-sponge-temp',-0.1)">−</button>
+        <input type="number" id="modal-sponge-temp" step="0.1" min="0" max="50">
+        <button class="sb" onclick="step('modal-sponge-temp',+0.1)">＋</button>
+      </div>
+    </div>
+
+    <div style="height:1px;background:#f0e8d0;margin:10px 0;"></div>
 
     <!-- 仕込み水温の使用方法 -->
     <div class="field">
@@ -626,6 +718,7 @@ function calculate() {
 
   document.getElementById('result-area').style.display = 'block';
   document.getElementById('result-temp').textContent = finalWater.toFixed(1);
+  document.getElementById('breakdown-wrap').style.display = 'block';
 
   // 内訳
   const bd = document.getElementById('breakdown');
@@ -694,6 +787,16 @@ function calculate() {
   if (autoLabel) autoLabel.textContent = `（計算値 ${finalWater.toFixed(1)}°C をそのまま使用）`;
 }
 
+function toggleBreakdown() {
+  const bd = document.getElementById('breakdown');
+  const hd = document.getElementById('breakdown-header');
+  const arrow = document.getElementById('breakdown-arrow');
+  const isOpen = bd.classList.contains('open');
+  bd.classList.toggle('open', !isOpen);
+  hd.classList.toggle('open', !isOpen);
+  arrow.classList.toggle('open', !isOpen);
+}
+
 function applyFrictionSuggestion(val) {
   document.getElementById('friction').value = val.toFixed(1);
   calculate();
@@ -749,25 +852,6 @@ function setKneadType(t) {
   document.getElementById('friction-hint').textContent = t==='machine'?'機械ごね目安：5〜10°C':'手ごね目安：−5〜4°C';
 }
 
-// ─── プリセット ─────────────────────────────────────────────────────────
-function renderPresets() {
-  const grid = document.getElementById('preset-grid');
-  grid.innerHTML = BREAD_PRESETS.map((p,i) => `
-    <button class="preset-btn" onclick="applyPreset(${i})">
-      <div class="preset-name">${p.icon} ${p.name}</div>
-      <div class="preset-temp">目標 ${p.target}°C　摩擦 ${p.friction}°C<br>${p.hint}</div>
-    </button>
-  `).join('');
-}
-function applyPreset(i) {
-  const p = BREAD_PRESETS[i];
-  document.getElementById('target-temp').value = p.target.toFixed(1);
-  document.getElementById('friction').value = p.friction.toFixed(1);
-  if (p.method) setMethod(p.method);
-  if (p.kneadType) setKneadType(p.kneadType);
-  showToast(`✅ ${p.name}の設定を適用しました`);
-}
-
 // ─── 保存 ──────────────────────────────────────────────────────────────
 function saveRecord() {
   const target  = parseFloat(document.getElementById('target-temp').value)||28;
@@ -814,36 +898,72 @@ let editingId=null;
 function openModal(id) {
   editingId=id;
   const r=getRecords().find(x=>x.id===id);
-  document.getElementById('modal-actual-temp').value=r?.actualTemp??'';
+  if(!r)return;
+  // 全項目を復元
+  document.getElementById('modal-date').value=r.date||'';
+  document.getElementById('modal-memo').value=r.memo||'';
+  document.getElementById('modal-method').value=r.method||'straight';
+  document.getElementById('modal-knead-type').value=r.kneadType||'machine';
+  document.getElementById('modal-target-temp').value=r.targetTemp!=null?r.targetTemp.toFixed(1):'28.0';
+  document.getElementById('modal-friction').value=r.friction!=null?r.friction.toFixed(1):'5.0';
+  document.getElementById('modal-room-temp').value=r.roomTemp!=null?r.roomTemp.toFixed(1):'20.0';
+  document.getElementById('modal-flour-temp').value=r.flourTemp!=null?r.flourTemp.toFixed(1):'20.0';
+  document.getElementById('modal-sponge-temp').value=r.spongeTemp!=null?r.spongeTemp.toFixed(1):'25.0';
+  document.getElementById('modal-sponge-field').style.display=(r.method==='sponge')?'block':'none';
+  document.getElementById('modal-actual-temp').value=r.actualTemp??'';
   // 仕込み水温方法を復元
-  const src=r?.waterTempSource||'auto';
+  const src=r.waterTempSource||'auto';
   document.getElementById('modal-wt-auto').checked=(src==='auto');
   document.getElementById('modal-wt-custom').checked=(src==='custom');
-  // usedWaterTemp
-  const uwt=r?.usedWaterTemp;
+  const uwt=r.usedWaterTemp;
   document.getElementById('modal-used-water-temp').value=(src==='custom'&&uwt!=null)?uwt:'';
   document.getElementById('modal-custom-water-field').style.display=(src==='custom')?'block':'none';
   document.getElementById('modal-actual').classList.add('show');
 }
 function closeModal() { document.getElementById('modal-actual').classList.remove('show'); }
+function onModalMethodChange() {
+  const m=document.getElementById('modal-method').value;
+  document.getElementById('modal-sponge-field').style.display=(m==='sponge')?'block':'none';
+}
 function saveActualTemp() {
-  const v=parseFloat(document.getElementById('modal-actual-temp').value);
-  if(isNaN(v)){showToast('⚠️ 捏ね上げ温度を入力してください');return;}
   const waterTempSource=document.getElementById('modal-wt-auto').checked?'auto':'custom';
   const uwtInput=document.getElementById('modal-used-water-temp').value;
+  const actualInput=document.getElementById('modal-actual-temp').value;
   const recs=getRecords();
   const i=recs.findIndex(r=>r.id===editingId);
   if(i!==-1){
-    recs[i].actualTemp=v;
+    const method=document.getElementById('modal-method').value;
+    const targetTemp=parseFloat(document.getElementById('modal-target-temp').value)||28;
+    const friction=parseFloat(document.getElementById('modal-friction').value)||5;
+    const roomTemp=parseFloat(document.getElementById('modal-room-temp').value)||20;
+    const flourTemp=parseFloat(document.getElementById('modal-flour-temp').value)||20;
+    const spongeTemp=parseFloat(document.getElementById('modal-sponge-temp').value)||25;
+    const mult=method==='sponge'?4:3;
+    const sub=method==='sponge'?(roomTemp+flourTemp+spongeTemp):(roomTemp+flourTemp);
+    const base=(targetTemp-friction)*mult-sub;
+    const correction=recs[i].correctionApplied||0;
+    const finalWater=Math.round((base+correction)*10)/10;
+    recs[i].date=document.getElementById('modal-date').value||recs[i].date;
+    recs[i].memo=document.getElementById('modal-memo').value;
+    recs[i].method=method;
+    recs[i].kneadType=document.getElementById('modal-knead-type').value;
+    recs[i].targetTemp=targetTemp;
+    recs[i].friction=friction;
+    recs[i].roomTemp=roomTemp;
+    recs[i].flourTemp=flourTemp;
+    recs[i].spongeTemp=method==='sponge'?spongeTemp:null;
+    recs[i].baseWaterTemp=Math.round(base*10)/10;
+    recs[i].waterTemp=finalWater;
+    recs[i].actualTemp=actualInput!==''?parseFloat(actualInput):null;
     recs[i].waterTempSource=waterTempSource;
     if(waterTempSource==='custom'){
       recs[i].usedWaterTemp=uwtInput!==''?parseFloat(uwtInput):null;
     } else {
-      recs[i].usedWaterTemp=recs[i].waterTemp;
+      recs[i].usedWaterTemp=finalWater;
     }
     saveRecords(recs);
   }
-  closeModal(); showToast('✅ 捏ね上げ記録を保存しました');
+  closeModal(); showToast('✅ 記録を更新しました');
   renderHistory(); renderStats();
 }
 
@@ -1114,9 +1234,6 @@ window.addEventListener('load', () => {
   const s=getSettings();
   document.getElementById('target-temp').value=s.defaultTarget.toFixed(1);
   document.getElementById('friction').value=s.machineFriction.toFixed(1);
-
-  // プリセット描画
-  renderPresets();
 
   // リアルタイム計算：計算に関わる入力が変わるたびに自動再計算
   ['target-temp','friction','room-temp','flour-temp','sponge-temp'].forEach(id => {
